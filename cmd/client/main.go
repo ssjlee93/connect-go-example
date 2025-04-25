@@ -40,4 +40,14 @@ func main() {
 		return
 	}
 	log.Println(res.Msg.Greeting)
+
+	// Server streaming
+	streamS, err := client.GreetS(ctx, connect.NewRequest(&greetv1.GreetRequest{Name: "Leah"}))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	for streamS.Receive() {
+		log.Println(streamS.Msg().Greeting)
+	}
 }
