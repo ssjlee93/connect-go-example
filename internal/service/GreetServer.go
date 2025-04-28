@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"strings"
 	"sync"
@@ -87,14 +86,12 @@ func (s *GreetServer) BothGreet(
 			req, err := stream.Receive()
 			if err != nil {
 				log.Printf("Failed to receive message: %v", err)
-				if err == io.EOF {
-					log.Println("Server closed the stream")
-					break
-				}
 				return
 			}
+			log.Printf("Received message from client: %s", req.Name)
 			ch <- req.Name
 		}
+
 	}()
 
 	go func() {
@@ -110,6 +107,7 @@ func (s *GreetServer) BothGreet(
 				return
 			}
 		}
+
 	}()
 
 	wg.Wait()

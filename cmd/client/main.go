@@ -53,6 +53,7 @@ func main() {
 	}
 
 	// Bidi streaming
+	// TODO fix this
 	stream := client.BothGreet(ctx)
 	ch := make(chan bool)
 
