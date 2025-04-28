@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
+	"sync"
 
 	greetv1 "example/gen/greet/v1"
 	"example/gen/greet/v1/greetv1connect"
@@ -12,7 +12,10 @@ import (
 	"connectrpc.com/connect"
 )
 
+var wg sync.WaitGroup
+
 func main() {
+	wg := sync.WaitGroup{}
 	ctx := context.Background()
 	client := greetv1connect.NewGreetServiceClient(
 		http.DefaultClient,
@@ -51,32 +54,20 @@ func main() {
 
 	// Bidi streaming
 	stream := client.BothGreet(ctx)
+	ch := make(chan bool)
 
-	if err != nil {
-		log.Fatalf("failed to open stream: %v", err)
-	}
-	defer stream.CloseRequest()
+	wg.Add(1)
+	go send(ch, stream)
 
-	namesToSend := []string{"Alice", "Bob", "Charlie", "David"}
+	<-ch
 
-	// Send a bunch of messages to the server
-	log.Println("Sending messages to the server...")
-	for _, name := range namesToSend {
-		fmt.Println(name)
-		req := &greetv1.GreetRequest{Name: name}
-		if err := stream.Send(req); err != nil {
-			log.Fatalf("failed to send request: %v", err)
-		}
-		log.Printf("Sent: %s", name)
-		// time.Sleep(time.Millisecond * 200) // Simulate some delay between sends
-	}
+	go receive(ch, stream)
 
-	// Signal to the server that we're done sending
-	if err := stream.CloseRequest(); err != nil {
-		log.Fatalf("failed to close request stream: %v", err)
-	}
-	log.Println("Finished sending messages.")
+	wg.Wait()
+}
 
+func receive(state chan bool, stream *connect.BidiStreamForClient[greetv1.GreetRequest, greetv1.GreetResponse]) {
+	defer wg.Done()
 	// Expecting one greeting message back from the server
 	log.Println("Waiting for greeting message from the server...")
 	resp, err := stream.Receive()
@@ -84,4 +75,15 @@ func main() {
 		log.Fatalf("failed to receive response: %v", err)
 	}
 	log.Printf("Received greeting: %s", resp.Greeting)
+	state <- false
+}
+
+func send(state chan bool, stream *connect.BidiStreamForClient[greetv1.GreetRequest, greetv1.GreetResponse]) {
+	defer wg.Done()
+	req := &greetv1.GreetRequest{Name: "bidi"}
+	if err := stream.Send(req); err != nil {
+		log.Fatalf("failed to send request: %v", err)
+	}
+	log.Printf("Sent: %s", "bidi")
+	state <- true
 }
