@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"sync"
 
 	greetv1 "example/gen/greet/v1"
 	"example/gen/greet/v1/greetv1connect"
@@ -12,10 +11,10 @@ import (
 	"connectrpc.com/connect"
 )
 
-var wg sync.WaitGroup
+// var wg sync.WaitGroup
 
 func main() {
-	wg := sync.WaitGroup{}
+	// wg := sync.WaitGroup{}
 	ctx := context.Background()
 	client := greetv1connect.NewGreetServiceClient(
 		http.DefaultClient,
@@ -57,18 +56,16 @@ func main() {
 	stream := client.BothGreet(ctx)
 	ch := make(chan bool)
 
-	wg.Add(1)
 	go send(ch, stream)
 
 	<-ch
 
 	go receive(ch, stream)
 
-	wg.Wait()
 }
 
 func receive(state chan bool, stream *connect.BidiStreamForClient[greetv1.GreetRequest, greetv1.GreetResponse]) {
-	defer wg.Done()
+
 	// Expecting one greeting message back from the server
 	log.Println("Waiting for greeting message from the server...")
 	resp, err := stream.Receive()
@@ -80,7 +77,7 @@ func receive(state chan bool, stream *connect.BidiStreamForClient[greetv1.GreetR
 }
 
 func send(state chan bool, stream *connect.BidiStreamForClient[greetv1.GreetRequest, greetv1.GreetResponse]) {
-	defer wg.Done()
+
 	req := &greetv1.GreetRequest{Name: "bidi"}
 	if err := stream.Send(req); err != nil {
 		log.Fatalf("failed to send request: %v", err)

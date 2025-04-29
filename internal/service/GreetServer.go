@@ -88,7 +88,6 @@ func (s *GreetServer) BothGreet(
 				log.Printf("Failed to receive message: %v", err)
 				return
 			}
-			log.Printf("Received message from client: %s", req.Name)
 			ch <- req.Name
 		}
 
