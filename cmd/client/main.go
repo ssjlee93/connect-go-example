@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"sync"
 
 	greetv1 "example/gen/greet/v1"
 	"example/gen/greet/v1/greetv1connect"
@@ -11,10 +15,10 @@ import (
 	"connectrpc.com/connect"
 )
 
-// var wg sync.WaitGroup
+var wg sync.WaitGroup
 
 func main() {
-	// wg := sync.WaitGroup{}
+	wg := sync.WaitGroup{}
 	ctx := context.Background()
 	client := greetv1connect.NewGreetServiceClient(
 		http.DefaultClient,
@@ -27,7 +31,6 @@ func main() {
 	)
 	if err != nil {
 		log.Println(err)
-		return
 	}
 	log.Println(res.Msg.Greeting)
 	// Client streaming
@@ -54,34 +57,57 @@ func main() {
 	// Bidi streaming
 	// TODO fix this
 	stream := client.BothGreet(ctx)
-	ch := make(chan bool)
 
-	go send(ch, stream)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		send(stream)
+		log.Println("finished sending")
+	}()
 
-	<-ch
+	go func() {
+		defer wg.Done()
+		receive(stream)
+		log.Println("finished receiving")
+	}()
 
-	go receive(ch, stream)
-
+	wg.Wait()
+	log.Println("client finished")
 }
 
-func receive(state chan bool, stream *connect.BidiStreamForClient[greetv1.GreetRequest, greetv1.GreetResponse]) {
-
-	// Expecting one greeting message back from the server
-	log.Println("Waiting for greeting message from the server...")
-	resp, err := stream.Receive()
-	if err != nil {
-		log.Fatalf("failed to receive response: %v", err)
+func receive(stream *connect.BidiStreamForClient[greetv1.GreetRequest, greetv1.GreetResponse]) {
+	log.Println("receive message")
+	for {
+		// Expecting one greeting message back from the server
+		log.Println("Waiting for greeting message from the server...")
+		resp, err := stream.Receive()
+		if err != nil {
+			log.Printf("failed to receive response: %v", err)
+		}
+		if resp == nil {
+			log.Println("received nil response")
+			return // Exit the loop if response is nil
+		}
+		log.Printf("Received greeting: %s", resp.Greeting)
 	}
-	log.Printf("Received greeting: %s", resp.Greeting)
-	state <- false
 }
 
-func send(state chan bool, stream *connect.BidiStreamForClient[greetv1.GreetRequest, greetv1.GreetResponse]) {
+func send(stream *connect.BidiStreamForClient[greetv1.GreetRequest, greetv1.GreetResponse]) {
+	log.Println("send message")
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Enter your name:")
 
-	req := &greetv1.GreetRequest{Name: "bidi"}
-	if err := stream.Send(req); err != nil {
-		log.Fatalf("failed to send request: %v", err)
+	for {
+		input, _ := reader.ReadString('\n')
+		input = input[:len(input)-1]
+		if input == "exit()" {
+			break
+		}
+
+		req := &greetv1.GreetRequest{Name: input}
+		if err := stream.Send(req); err != nil {
+			log.Printf("failed to send request: %v", err)
+		}
+		log.Printf("Sent: %s", input)
 	}
-	log.Printf("Sent: %s", "bidi")
-	state <- true
 }
