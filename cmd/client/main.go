@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -13,15 +15,27 @@ import (
 	"example/gen/greet/v1/greetv1connect"
 
 	"connectrpc.com/connect"
+	"golang.org/x/net/http2"
 )
 
-var wg sync.WaitGroup
+var wg *sync.WaitGroup
 
 func main() {
-	wg := sync.WaitGroup{}
+	wg = &sync.WaitGroup{}
 	ctx := context.Background()
 	client := greetv1connect.NewGreetServiceClient(
-		http.DefaultClient,
+		// need http2 Trasnport to support bidi streaming
+		&http.Client{
+			Transport: &http2.Transport{
+				AllowHTTP: true,
+				DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
+					// If you're also using this client for non-h2c traffic, you may want to
+					// delegate to tls.Dial if the network isn't TCP or the addr isn't in an
+					// allowlist.
+					return net.Dial(network, addr)
+				},
+			},
+		},
 		"http://localhost:8080",
 		connect.WithGRPC(),
 	)
