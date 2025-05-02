@@ -3,6 +3,7 @@ package main
 import (
 	"example/gen/greet/v1/greetv1connect"
 	"example/internal/service"
+	"example/pkg/db"
 	"net/http"
 
 	"golang.org/x/net/http2"
@@ -10,8 +11,9 @@ import (
 )
 
 func main() {
+	d := db.NewDB()
 	// interceptor := connect.WithInterceptors(interceptor.NewAuthInterceptor())
-	greeter := &service.GreetServer{}
+	greeter := service.NewGreetServer(d)
 	mux := http.NewServeMux()
 	path, handler := greetv1connect.NewGreetServiceHandler(greeter)
 	mux.Handle(path, handler)

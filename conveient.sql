@@ -1,0 +1,1 @@
+INSERT INTO greetings.greeting (id, name, message, created_at, updated_at) VALUES (uuid(), 'fake', 't greet', toTimestamp(now()), toTimestamp(now()));
